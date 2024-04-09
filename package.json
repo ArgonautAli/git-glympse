@@ -1,0 +1,24 @@
+{
+  "name": "glympse",
+  "version": "1.0.0",
+  "description": "A CLI tool to analyse github repository ",
+  "main": "bin/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "glympse-git"
+  ],
+  "author": "ArgonautAli",
+  "license": "ISC",
+  "bin": {
+    "gly-git": "./bin/index.js"
+  },
+  "dependencies": {
+    "boxen": "^2.1.0",
+    "chalk": "^2.4.2",
+    "cli-chart": "^0.3.1",
+    "simple-git": "^3.24.0",
+    "yargs": "^17.7.2"
+  }
+}
