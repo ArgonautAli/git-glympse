@@ -4,7 +4,7 @@ const simpleGit = require("simple-git");
 const yargs = require("yargs");
 const chalk = require("chalk")
 const boxen = require("boxen");
-var Chart = require('cli-chart');
+const Chart = require('cli-chart');
 const { stringify } = require("querystring");
 
 
@@ -16,46 +16,27 @@ function showHelp() {
     console.log('\t--help\t\t      ' + 'Show help.' + '\t\t\t' + '[boolean]\n')  
 }
 
-async function getCommitsPerDay(branchName, lastDays) {
+async function getCommitsPerDay(lastDays, branchName) {
     try {
         const git = simpleGit();
 
-      // Calculate the date 30 days ago
-      const sinceDate = new Date();
-      sinceDate.setDate(sinceDate.getDate() - lastDays);
+    
 
-      // Check if sinceDate is a valid date
-      if (isNaN(sinceDate.getTime())) {
-          throw new Error('Invalid date calculated.');
-      }
+        const log = await git.raw([ 'log', `--since="${lastDays} days ago"`, branchName])
 
-      // Convert sinceDate to a string in 'YYYY-MM-DD' format
-      const sinceDateString = sinceDate.toISOString().slice(0, 10);
-      
-        const { all: commitList } = await git.raw([
-            'log',
-            branchName, // Specify the branch name
-            `--since=${sinceDateString}`, // Use the calculated date string
-            '--format=%cd',
-            '--date=short'
-        ]);
-        // Log the output of git log for debugging
-        console.log('Git log output:', commitList);
+        const commits = log.split('\n');
 
-        // Check if commitList is undefined or empty
-        if (!commitList || commitList.trim() === '') {
-            console.log('No commits found in the last', lastDays, 'days for branch', branchName);
-            return {};
+        const commitsInDay = Array(lastDays).fill(0); 
+        
+        // Iterate over commits and count commits for each day
+        for (const commit of commits) {
+            if (commit.startsWith('Date: ')) {
+                const date = new Date(commit.substring(6).trim()); 
+                const dayIndex = Math.min(Math.floor((Date.now() - date.getTime()) / (24 * 3600 * 1000)), 29); 
+                commitsInDay[dayIndex]++; 
+            }
         }
-
-        // Count commits per day
-        const commitsPerDay = {};
-        commitList.split('\n').forEach(commitDate => {
-            const date = commitDate.trim();
-            commitsPerDay[date] = (commitsPerDay[date] || 0) + 1;
-        });
-
-        return commitsPerDay;
+        return commitsInDay
     } catch (error) {
         console.error('Error:', error);
         return null;
@@ -72,8 +53,8 @@ async function getRepoPath() {
 }
 
 
-const usage = chalk.keyword('violet')("\nUsage: gly-git -b <branch> \n"
-+ boxen(chalk.green("\n" + "Analyse your github repo's any branch" + "\n"), {padding: 1, borderColor: 'green', dimBorder: true}) + "\n");
+const usage = chalk.keyword('violet')("\nUsage: in-git -b <branch> \n"
++ boxen(chalk.green("\n" + "Get insights on any branch of your GitHub repository for better analytics" + "\n"), {padding: 1, borderColor: 'green', dimBorder: true}) + "\n");
 
 
 const options = yargs
@@ -106,8 +87,9 @@ if (branch_name !== null&& (await getRepoPath()) !== null) {
 
 async function analytics(repoPath, branch_name){
     try{
+        var lastDays = 30;
         git = simpleGit(repoPath)
-        const log = await git.log({from: branch_name});
+        const log = await git.log({from: branch_name, '--since': `${lastDays}.days.ago`});
         const commit_count = log.total;
         const last_commit = log.latest;
         const last_commit_date = last_commit.date;
@@ -115,10 +97,17 @@ async function analytics(repoPath, branch_name){
         console.log(`Number of Commits: ${commit_count}`);
         console.log(`Last Commit Date: ${last_commit_date}`);
         console.log(`Last Committer: ${last_committer}`);
-        var lastDays = 30;
-        getCommitsPerDay(lastDays, branch_name).then(commitsPerDay => {
-            if (commitsPerDay !== null) {
-                console.log('Commits per day in the last', lastDays, 'days:', commitsPerDay);
+
+        getCommitsPerDay(lastDays, branch_name).then(commitsInDay => {
+            if (commitsInDay !== null || commitsInDay !== undefined) {
+                var chart = new Chart({width: 120, height: 20, directon: 'y', xlabel: 'Days', 
+                ylabel: 'Commits',  xmax: lastDays,  ymax: 3, 
+             });
+            
+                chart.bucketize(commitsInDay);
+                chart.draw();
+                process.exit();
+                // console.log('Commits per day in the last', lastDays, 'days:', commitsInDay);
             } else {
                 console.log('An error occurred while fetching commit history.');
             }

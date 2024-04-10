@@ -1,5 +1,5 @@
 {
-  "name": "glympse",
+  "name": "gitsight",
   "version": "1.0.0",
   "description": "A CLI tool to analyse github repository ",
   "main": "bin/index.js",
@@ -7,12 +7,12 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
-    "glympse-git"
+    "insight-git"
   ],
   "author": "ArgonautAli",
   "license": "ISC",
   "bin": {
-    "gly-git": "./bin/index.js"
+    "in-git": "./bin/index.js"
   },
   "dependencies": {
     "boxen": "^2.1.0",
