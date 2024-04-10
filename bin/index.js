@@ -13,14 +13,13 @@ function showHelp() {
     console.log('\nOptions:\r')
     console.log('\t--version\t      ' + 'Show version number.' + '\t\t' + '[boolean]\r')
     console.log('\t-b, --branches\t' + '      Branch you want to analyse      ' + '       [string]\r')
+    console.log('\t-b, --time\t' + '      Time period     ' + '       [string]\r')
     console.log('\t--help\t\t      ' + 'Show help.' + '\t\t\t' + '[boolean]\n')
 }
 
 async function getCommitsPerDay(lastDays, branchName) {
     try {
         const git = simpleGit();
-
-
 
         const log = await git.raw(['log', `--since="${lastDays} days ago"`, branchName])
 
@@ -69,25 +68,26 @@ async function main() {
 
     var branch_name = yargs.argv.b || yargs.argv.branches
 
+    var time_period = yargs.argv.t || yargs.argv.time
+
     if (branch_name == null) {
         showHelp();
         return;
     }
-    if (getRepoPath() === undefined || getRepoPath() === null && branch_name !== null) {
+    if (getRepoPath() === undefined || getRepoPath() === null && branch_name !== null && time_period !== null) {
         return;
     }
-    if (branch_name !== null && (await getRepoPath()) !== null) {
+    if (branch_name !== null && (await getRepoPath()) !== null && time_period !== null) {
         var repo = stringify(await getRepoPath())
-        analytics(repo, branch_name);
+        analytics(repo, branch_name, time_period);
     }
 }
 
 
-
-
-async function analytics(repoPath, branch_name) {
+async function analytics(repoPath, branch_specified, time_period) {
     try {
-        var lastDays = 30;
+        var branch_name = branch_specified || "main"
+        var lastDays = time_period || 30;
         git = simpleGit(repoPath)
         const log = await git.log({ from: branch_name, '--since': `${lastDays}.days.ago` });
         const commit_count = log.total;
