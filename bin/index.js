@@ -5,7 +5,9 @@ const yargs = require("yargs");
 const chalk = require("chalk")
 const boxen = require("boxen");
 const Chart = require('cli-chart');
-const { stringify } = require("querystring");
+const { promisify } = require('util');
+const { exec } = require('child_process');
+const execAsync = promisify(exec);
 
 
 function showHelp() {
@@ -13,8 +15,18 @@ function showHelp() {
     console.log('\nOptions:\r')
     console.log('\t--version\t      ' + 'Show version number.' + '\t\t' + '[boolean]\r')
     console.log('\t-b, --branches\t' + '      Branch you want to analyse      ' + '       [string]\r')
-    console.log('\t-b, --time\t' + '      Time period     ' + '       [string]\r')
+    console.log('\t-t --time\t' + '      Time period     ' + '       [string]\r')
     console.log('\t--help\t\t      ' + 'Show help.' + '\t\t\t' + '[boolean]\n')
+}
+
+
+
+async function getRepoPath() {
+    try {
+        return process.cwd();
+    } catch (error) {
+        console.error('Error:', error);
+    }
 }
 
 async function getCommitsPerDay(lastDays, branchName) {
@@ -27,7 +39,6 @@ async function getCommitsPerDay(lastDays, branchName) {
 
         const commitsInDay = Array(lastDays).fill(0);
 
-        // Iterate over commits and count commits for each day
         for (const commit of commits) {
             if (commit.startsWith('Date: ')) {
                 const date = new Date(commit.substring(6).trim());
@@ -42,15 +53,23 @@ async function getCommitsPerDay(lastDays, branchName) {
     }
 }
 
-async function getRepoPath() {
+async function getCommitLogs(branchName, lastDays) {
     try {
-        return process.cwd();
+        const { stdout } = await execAsync(`git log --since="${lastDays} days ago" ${branchName}`);
+        const commits = stdout.trim().split('\n\ncommit ').map(commit => 'commit ' + commit);
+        const lastCommit = commits[0];
+        const lastCommitInfo = {
+            date: lastCommit.match(/Date:\s+(.+)/)[1],
+            author_name: lastCommit.match(/Author:\s+(.+)/)[1].split('<')[0].trim()
+        };
+        const commitCount = commits.length;
+
+        return { commitCount, lastCommitInfo };
     } catch (error) {
         console.error('Error:', error);
         return null;
     }
 }
-
 
 const usage = chalk.keyword('violet')("\nUsage: in-git -b <branch> \n"
     + boxen(chalk.green("\n" + "Get insights on any branch of your GitHub repository for better analytics" + "\n"), { padding: 1, borderColor: 'green', dimBorder: true }) + "\n");
@@ -70,6 +89,8 @@ async function main() {
 
     var time_period = yargs.argv.t || yargs.argv.time
 
+    console.log("time_period", time_period)
+
     if (branch_name == null) {
         showHelp();
         return;
@@ -78,7 +99,8 @@ async function main() {
         return;
     }
     if (branch_name !== null && (await getRepoPath()) !== null && time_period !== null) {
-        var repo = stringify(await getRepoPath())
+        var repo = await getRepoPath();
+        console.log("repo1", repo)
         analytics(repo, branch_name, time_period);
     }
 }
@@ -89,14 +111,17 @@ async function analytics(repoPath, branch_specified, time_period) {
         var branch_name = branch_specified || "main"
         var lastDays = time_period || 30;
         git = simpleGit(repoPath)
-        const log = await git.log({ from: branch_name, '--since': `${lastDays}.days.ago` });
-        const commit_count = log.total;
-        const last_commit = log.latest;
-        const last_commit_date = last_commit.date;
-        const last_committer = last_commit.author_name;
-        console.log(`Number of Commits: ${commit_count}`);
-        console.log(`Last Commit Date: ${last_commit_date}`);
-        console.log(`Last Committer: ${last_committer}`);
+
+        const commitLogs = await getCommitLogs(branch_specified, time_period);
+
+        if (commitLogs !== null) {
+            const { commitCount, lastCommitInfo } = commitLogs;
+            console.log(`Number of Commits: ${commitCount}`);
+            console.log(`Last Commit Date: ${lastCommitInfo.date}`);
+            console.log(`Last Committer: ${lastCommitInfo.author_name}`);
+        } else {
+            console.log('Failed to retrieve commit logs.');
+        }
 
         getCommitsPerDay(lastDays, branch_name).then(commitsInDay => {
             if (commitsInDay !== null || commitsInDay !== undefined) {
@@ -108,7 +133,6 @@ async function analytics(repoPath, branch_specified, time_period) {
                 chart.bucketize(commitsInDay);
                 chart.draw();
                 process.exit();
-                // console.log('Commits per day in the last', lastDays, 'days:', commitsInDay);
             } else {
                 console.log('An error occurred while fetching commit history.');
             }
