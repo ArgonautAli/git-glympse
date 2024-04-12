@@ -55,16 +55,27 @@ async function getCommitsPerDay(lastDays, branchName) {
 
 async function getCommitLogs(branchName, lastDays) {
     try {
-        const { stdout } = await execAsync(`git log --since="${lastDays} days ago" ${branchName}`);
+        const { stdout } = await execAsync(`git log --since="${lastDays} days" ${branchName}`);
         const commits = stdout.trim().split('\n\ncommit ').map(commit => 'commit ' + commit);
         const lastCommit = commits[0];
-        const lastCommitInfo = {
-            date: lastCommit.match(/Date:\s+(.+)/)[1],
-            author_name: lastCommit.match(/Author:\s+(.+)/)[1].split('<')[0].trim()
-        };
-        const commitCount = commits.length;
+        const dateMatch = lastCommit.match(/Date:\s+(.+)/);
+        const authorMatch = lastCommit.match(/Author:\s+(.+)/);
+        const commitMessage = lastCommit.split('\n').slice(4).join('\n').trim(); // Extract commit message
 
-        return { commitCount, lastCommitInfo };
+        
+        if (dateMatch && authorMatch) {
+            const lastCommitInfo = {
+                date: dateMatch[1],
+                author_name: authorMatch[1].split('<')[0].trim(),
+                message: commitMessage
+            };
+            const commitCount = commits.length;
+
+            return { commitCount, lastCommitInfo };
+        } else {
+            console.error('Error: Date or Author information not found in commit message.');
+            return null;
+        }
     } catch (error) {
         console.error('Error:', error);
         return null;
@@ -89,8 +100,6 @@ async function main() {
 
     var time_period = yargs.argv.t || yargs.argv.time
 
-    console.log("time_period", time_period)
-
     if (branch_name == null) {
         showHelp();
         return;
@@ -100,7 +109,6 @@ async function main() {
     }
     if (branch_name !== null && (await getRepoPath()) !== null && time_period !== null) {
         var repo = await getRepoPath();
-        console.log("repo1", repo)
         analytics(repo, branch_name, time_period);
     }
 }
@@ -119,6 +127,7 @@ async function analytics(repoPath, branch_specified, time_period) {
             console.log(`Number of Commits: ${commitCount}`);
             console.log(`Last Commit Date: ${lastCommitInfo.date}`);
             console.log(`Last Committer: ${lastCommitInfo.author_name}`);
+            console.log(`Last Commit Message: ${lastCommitInfo.message}`)
         } else {
             console.log('Failed to retrieve commit logs.');
         }
